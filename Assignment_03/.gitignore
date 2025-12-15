@@ -1,0 +1,6 @@
+__pycache__
+*.pyc
+.env
+v_env
+hide.py
+emp_hdr.csv
