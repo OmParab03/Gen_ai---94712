@@ -1,0 +1,7 @@
+__pycache__
+en
+*.pyc 
+hideee.py
+users.json
+users.csv
+chats.csv
