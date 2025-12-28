@@ -42,10 +42,10 @@ print("\n table2: \n")
     
     
 wait=WebDriverWait(dr,10)
-# Scroll to the bottom (makes sure that dynamic contents load)
+
 dr.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
-# wait for and click the "Available Internship Programs" toggle button
+
 plus_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@href='#collapseSix']")))
 dr.execute_script("arguments[0].scrollIntoView(true);", plus_button)
 plus_button.click()
