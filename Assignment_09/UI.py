@@ -6,11 +6,11 @@ from pandasql import sqldf
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import streamlit as st 
-import time
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-# -------------------------
-# LLM Initialization
-# -------------------------
+#LLM
 llm = init_chat_model(
     model="qwen/qwen3-8b",
     model_provider="openai",
@@ -18,9 +18,7 @@ llm = init_chat_model(
     api_key="non-needed"
 )
 
-# -------------------------
-# Tool 1: CSV Question Answering
-# -------------------------
+
 @tool
 def csv_query_tool(question, csv_path):
     """
@@ -31,7 +29,7 @@ def csv_query_tool(question, csv_path):
     df = pd.read_csv(csv_path)
     schema = ", ".join([f"{col} ({dtype})" for col, dtype in zip(df.columns, df.dtypes)])
 
-    # SQL generation prompt
+  
     sql_prompt = f"""
     You are an expert SQL developer.
     Table: df
@@ -48,7 +46,7 @@ def csv_query_tool(question, csv_path):
     except Exception as e:
         return f"SQL Error: {e}"
 
-    # Explanation prompt
+    
     explain_prompt = f"""
     You are a data analyst.
     Question: {question}
@@ -60,68 +58,96 @@ def csv_query_tool(question, csv_path):
     explanation = llm.invoke(explain_prompt).content
     return explanation
 
-# -------------------------
-# Tool 2: Internship Selenium Agent
-# -------------------------
+
+
 @tool
-def internship_tool(question):
+def internship_tool_available_internship_program(question):
     """
-    Scrapes Sunbeam internship data using Selenium,
+    Scrapes Sunbeam Available internship program  table data using Selenium,
     answers user's question strictly based on scraped data.
     """
-    url = "https://sunbeaminfo.in/internship"
-    driver = webdriver.Chrome()
-    driver.get(url)
-    time.sleep(3)
+    chrome_options=Options()
+    chrome_options.add_argument("--headless=new")
+    dr=webdriver.Chrome(options=chrome_options)
+    dr.implicitly_wait(5)
 
-    internship_data = []
-    rows = driver.find_elements(By.XPATH, '//div//table//tbody//tr')
+    dr.get("https://www.sunbeaminfo.in/internship")
+    wait=WebDriverWait(dr,10)
+
+    dr.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+
+    plus_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@href='#collapseSix']")))
+    dr.execute_script("arguments[0].scrollIntoView(true);", plus_button)
+    plus_button.click()
+
+
+    table2=dr.find_element(By.ID,value="collapseSix")
+    tbody=table2.find_element(By.TAG_NAME,"tbody")
+    rows=tbody.find_elements(By.TAG_NAME,"tr")
+
+
     for row in rows:
-        cols = row.find_elements(By.XPATH, './/td')
-        if len(cols) >= 7:
-            internship_data.append({
-                "Batch": cols[1].text.strip(),
-                "Batch_Duration": cols[2].text.strip(),
-                "Start_Date": cols[3].text.strip(),
-                "End_Date": cols[4].text.strip(),
-                "Time": cols[5].text.strip(),
-                "Fees_INR": cols[6].text.strip()
-            })
-    driver.quit()
-
-    df = pd.DataFrame(internship_data)
-
-    # LLM prompt to answer question based on DataFrame
-    context = df.to_string(index=False)
-    prompt = f"""
-    You are an AI assistant.
-    Answer the user's question strictly using the internship data below.
-    Do not make assumptions outside the data.
-
-    Internship Data:
-    {context}
-
-    Question:
-    {question}
-
-    Explain the answer in simple English.
+        cols=row.find_elements(By.TAG_NAME,"td")
+        info_table2={
+            "Technology":cols[0].text,
+            "Aim":cols[1].text,
+            "Prerequisite":cols[2].text,
+            "Learning":cols[3].text,
+            "Location":cols[4].text,
+        
+        }
+    return info_table2
+@tool
+def internship_tool_Batch_schedule(question):
     """
+    Scrapes Sunbeam internship Batch schedule table data using Selenium,
+    answers user's question strictly based on scraped data.
+    """
+    
 
-    response = llm.invoke(prompt)
-    return response.content
 
-# -------------------------
-# Create the agent with both tools
-# -------------------------
+    chrome_options=Options()
+    chrome_options.add_argument("--headless=new")
+    dr=webdriver.Chrome(options=chrome_options)
+    dr.implicitly_wait(5)
+
+    dr.get("https://www.sunbeaminfo.in/internship")
+    
+
+
+    table1=dr.find_element(By.CSS_SELECTOR,"table.table.table-bordered.table-striped")
+
+    body=table1.find_element(By.TAG_NAME,"tbody")
+    rows = body.find_elements(By.TAG_NAME,"tr")
+
+    for row in rows:
+        cols = row.find_elements(By.TAG_NAME,"td")
+        if len(cols)<7:
+            continue
+        info_table1={
+                "sr":cols[0].text,
+                "batch":cols[1].text,
+                "batch duration":cols[2].text,
+                "start date":cols[3].text,
+                "End date":cols[4].text,
+                "time":cols[5].text,
+                "fees":cols[6].text
+            }
+    return info_table1
+
+# Create the agent with  tools
+
 agent = create_agent(
     model=llm,
-    tools=[csv_query_tool, internship_tool],
-    system_prompt="You are a helpful assistant. Use the appropriate tool to answer questions."
+    tools=[csv_query_tool, 
+           internship_tool_available_internship_program,
+           internship_tool_Batch_schedule],
+    system_prompt="You are a helpful assistant. Use the appropriate tool to answer questions.but when the tool is used or return any scrapping from any website you return all scrapping data as it is tool returned."
 )
 
-# -------------------------
-# Run interactive loop
-# -------------------------
+
+
 def info_csv(csv_file):
     if csv_file is not None:
         df = pd.read_csv(csv_file)
@@ -130,7 +156,7 @@ def info_csv(csv_file):
 
 
 
-#------------UI------------
+#UI
 with st.sidebar:
     choice=["CSV-QNA","Scrapping"]
     option=st.selectbox("select for best output",choice)
